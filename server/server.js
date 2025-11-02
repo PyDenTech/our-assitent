@@ -15,7 +15,7 @@ dotenv.config();
 const REQUIRED_ENV = ['JWT_SECRET', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REDIRECT_URI'];
 REQUIRED_ENV.forEach((k) => {
     if (!process.env[k]) {
-        console.error(`[ENV] Faltando ${k} (verifique server/.env)`);
+        console.error(`[ENV] Faltando ${k} (verifique server/.env ou variáveis do App Runner)`);
         process.exit(1);
     }
 });
@@ -23,13 +23,18 @@ REQUIRED_ENV.forEach((k) => {
 // opcionais com default
 process.env.PORT ||= '3001';
 process.env.FRONTEND_URL ||= 'http://localhost:5173';
+process.env.DATABASE_PATH ||= '/tmp/database.db'; // gravável no App Runner
 
 const app = express();
 const PORT = process.env.PORT;
 const JWT_SECRET = process.env.JWT_SECRET;
 const FRONTEND_URL = process.env.FRONTEND_URL;
+const DB_PATH = process.env.DATABASE_PATH;
 
-// --- Google OAuth (forma 3 argumentos) ---
+// O App Runner/ALB termina TLS. Necessário p/ cookies "secure" + SameSite=None.
+app.set('trust proxy', 1);
+
+// --- Google OAuth ---
 const googleClient = new OAuth2Client(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
@@ -40,10 +45,10 @@ const googleClient = new OAuth2Client(
 let db;
 async function connectDB() {
     db = await open({
-        filename: './database.db',
+        filename: DB_PATH,
         driver: sqlite3.Database,
     });
-    console.log('Conectado ao SQLite.');
+    console.log('Conectado ao SQLite em:', DB_PATH);
     await initializeDB();
 }
 
@@ -52,7 +57,6 @@ async function migrateUsersTableIfNeeded() {
     const cols = await db.all(`PRAGMA table_info(users)`);
     const colNames = new Set(cols.map((c) => c.name));
 
-    // provider/provider_id
     if (!colNames.has('provider')) {
         await db.exec(`ALTER TABLE users ADD COLUMN provider TEXT DEFAULT 'local';`);
         console.log('[MIGRATION] Coluna "provider" adicionada em users.');
@@ -62,7 +66,6 @@ async function migrateUsersTableIfNeeded() {
         console.log('[MIGRATION] Coluna "provider_id" adicionada em users.');
     }
 
-    // normaliza provider em registros antigos
     await db.exec(`UPDATE users SET provider = COALESCE(provider, 'local') WHERE provider IS NULL;`);
 }
 
@@ -117,10 +120,9 @@ async function initializeDB() {
     );
   `);
 
-    // roda migração para bancos antigos (sem provider/provider_id)
     await migrateUsersTableIfNeeded();
 
-    // Usuário admin padrão
+    // Usuário admin padrão (apenas se não existir)
     const admin = await db.get('SELECT * FROM users WHERE email = ?', 'admin@admin.com');
     if (!admin) {
         const salt = await bcrypt.genSalt(10);
@@ -140,8 +142,9 @@ async function initializeDB() {
 
 // --- Middlewares ---
 const ALLOWED_ORIGINS = [
-    process.env.FRONTEND_URL || 'http://localhost:5173',
-    'https://ourassistent.pydentech.com'
+    FRONTEND_URL,                         // lido do env
+    'http://localhost:5173',              // dev
+    'https://ourassistent.pydentech.com'  // front em prod
     // adicione outros domínios se necessário
 ];
 
@@ -156,6 +159,13 @@ app.use(cors({
 app.use(cookieParser());
 app.use(express.json());
 
+// --- Health check & raiz ---
+app.get('/health', (req, res) => {
+    res.status(200).json({ status: 'ok' });
+});
+
+app.get('/', (req, res) => res.send('OurAssistent API ok'));
+
 // --- Helpers ---
 function signToken(user) {
     const payload = {
@@ -168,11 +178,12 @@ function signToken(user) {
 }
 
 function setAuthCookie(res, token) {
+    const isProd = process.env.NODE_ENV === 'production';
     res.cookie('access_token', token, {
         httpOnly: true,
-        secure: false, // true em produção com HTTPS
-        sameSite: 'lax',
-        maxAge: 8 * 60 * 60 * 1000, // 8h
+        secure: isProd,                  // App Runner (HTTPS) => true
+        sameSite: isProd ? 'none' : 'lax', // domínios distintos exigem 'none'
+        maxAge: 8 * 60 * 60 * 1000,     // 8h
     });
 }
 
@@ -217,7 +228,7 @@ app.post('/api/auth/login', async (req, res) => {
 
 // Registrar (local) — aceita full_name OU name
 app.post('/api/auth/register', async (req, res) => {
-    const full_name = req.body.full_name || req.body.name; // <-- compatível com o front
+    const full_name = req.body.full_name || req.body.name;
     const { email, password } = req.body;
     if (!full_name || !email || !password) return res.status(400).json({ message: 'Dados incompletos' });
 
@@ -252,7 +263,12 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
 
 // Logout
 app.post('/api/auth/logout', (req, res) => {
-    res.clearCookie('access_token', { httpOnly: true, sameSite: 'lax' });
+    const isProd = process.env.NODE_ENV === 'production';
+    res.clearCookie('access_token', {
+        httpOnly: true,
+        sameSite: isProd ? 'none' : 'lax',
+        secure: isProd
+    });
     res.status(200).json({ message: 'Logout efetuado' });
 });
 
@@ -303,7 +319,6 @@ app.get('/auth/google/callback', async (req, res) => {
                 await db.run('UPDATE users SET provider = ?, provider_id = ? WHERE id = ?', 'google', provider_id, existingByEmail.id);
                 user = await db.get('SELECT * FROM users WHERE id = ?', existingByEmail.id);
             } else {
-                // password = '' para compatibilidade com bancos antigos que tenham NOT NULL
                 const result = await db.run(
                     'INSERT INTO users (full_name, email, password, role, designacoes, provider, provider_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
                     full_name,
@@ -355,17 +370,7 @@ app.post('/api/eventos', authenticateToken, async (req, res) => {
     const { nome, tipo, data_inicio, data_fim, horario_saida, local, endereco, descricao, status, quantidade_onibus, capacidade_por_onibus } = req.body;
     const result = await db.run(
         'INSERT INTO eventos (nome, tipo, data_inicio, data_fim, horario_saida, local, endereco, descricao, status, quantidade_onibus, capacidade_por_onibus) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        nome,
-        tipo,
-        data_inicio,
-        data_fim,
-        horario_saida,
-        local,
-        endereco,
-        descricao,
-        status,
-        quantidade_onibus,
-        capacidade_por_onibus
+        nome, tipo, data_inicio, data_fim, horario_saida, local, endereco, descricao, status, quantidade_onibus, capacidade_por_onibus
     );
     res.status(201).json({ id: result.lastID, ...req.body });
 });
@@ -374,18 +379,7 @@ app.put('/api/eventos/:id', authenticateToken, async (req, res) => {
     const { nome, tipo, data_inicio, data_fim, horario_saida, local, endereco, descricao, status, quantidade_onibus, capacidade_por_onibus } = req.body;
     await db.run(
         'UPDATE eventos SET nome = ?, tipo = ?, data_inicio = ?, data_fim = ?, horario_saida = ?, local = ?, endereco = ?, descricao = ?, status = ?, quantidade_onibus = ?, capacidade_por_onibus = ? WHERE id = ?',
-        nome,
-        tipo,
-        data_inicio,
-        data_fim,
-        horario_saida,
-        local,
-        endereco,
-        descricao,
-        status,
-        quantidade_onibus,
-        capacidade_por_onibus,
-        req.params.id
+        nome, tipo, data_inicio, data_fim, horario_saida, local, endereco, descricao, status, quantidade_onibus, capacidade_por_onibus, req.params.id
     );
     res.status(200).json({ message: 'Evento atualizado' });
 });
@@ -411,14 +405,11 @@ app.post('/api/agendamentos', async (req, res) => {
     const { evento_id, numero_cartao, tipo_viagem, responsavel, passageiros, assentos, status, observacoes } = req.body;
     const result = await db.run(
         'INSERT INTO agendamentos (evento_id, numero_cartao, tipo_viagem, responsavel, passageiros, assentos, status, observacoes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        evento_id,
-        numero_cartao,
-        tipo_viagem,
+        evento_id, numero_cartao, tipo_viagem,
         JSON.stringify(responsavel || {}),
         JSON.stringify(passageiros || []),
         JSON.stringify(assentos || []),
-        status,
-        observacoes
+        status, observacoes
     );
     const novo = await db.get('SELECT * FROM agendamentos WHERE id = ?', result.lastID);
     res.status(201).json({
@@ -437,9 +428,7 @@ app.put('/api/agendamentos/:id', authenticateToken, async (req, res) => {
         JSON.stringify(responsavel || {}),
         JSON.stringify(passageiros || []),
         JSON.stringify(assentos || []),
-        status,
-        observacoes,
-        req.params.id
+        status, observacoes, req.params.id
     );
     res.status(200).json({ message: 'Agendamento atualizado' });
 });
