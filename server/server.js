@@ -438,7 +438,6 @@ app.delete('/api/agendamentos/:id', authenticateToken, async (req, res) => {
     res.status(204).send();
 });
 
-// --- Iniciar o Servidor ---
 connectDB()
     .then(() => {
         console.log('[ENV] FRONTEND_URL =', FRONTEND_URL);
