@@ -1,9 +1,10 @@
 version: 1.0
 runtime: nodejs20
-# App Runner vai rodar "npm ci" por padrão.
+
 build:
   commands:
     - npm ci --omit=dev
+
 run:
   command: node server.js
   network:
@@ -14,21 +15,23 @@ run:
     - name: PORT
       value: "3001"
     - name: FRONTEND_URL
-      value: "https://ourassistent.pydentech.com" # Amplify
+      value: "https://ourassistent.pydentech.com" # domínio do frontend (Amplify)
     - name: JWT_SECRET
-      value: "COLOQUE_UM_SEGREGO_FORTE_AQUI" # sobrescreva em Console se preferir
+      value: "${JWT_SECRET}" # configure o valor real direto no console do App Runner
     - name: GOOGLE_CLIENT_ID
-      value: "***REMOVED***"
+      value: "${GOOGLE_CLIENT_ID}" # configure no ambiente AWS
     - name: GOOGLE_CLIENT_SECRET
-      value: "***REMOVED***"
+      value: "${GOOGLE_CLIENT_SECRET}" # configure no ambiente AWS
     - name: GOOGLE_REDIRECT_URI
       value: "https://api.ourassistent.pydentech.com/auth/google/callback"
+
 healthcheck:
   path: /health
   interval: 10 # segundos
   timeout: 5
   healthyThreshold: 1
   unhealthyThreshold: 5
+
 autoDeploymentsEnabled: true
 cpu: 1 vCPU
 memory: 2 GB
