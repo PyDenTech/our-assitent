@@ -1,0 +1,9 @@
+# Substitui qualquer linha contendo os rótulos destas variáveis por versão limpa
+regex:^(GOOGLE_CLIENT_ID=).*$
+***REMOVED***
+
+regex:^(GOOGLE_CLIENT_SECRET=).*$
+***REMOVED***
+
+regex:^(JWT_SECRET=).*$
+***REMOVED***
