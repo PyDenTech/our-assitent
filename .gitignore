@@ -1,6 +1,23 @@
-# raiz
+# Node
+node_modules/
+client/node_modules/
+server/node_modules/
+client/.cache/
+*.log
+
+# Builds
+dist/
+build/
+client/dist/
+
+# Ambiente e dados
+.env
+*.env
 client/.env
 server/.env
 server/database.db
-client/node_modules
-server/node_modules
+
+# SO / IDE
+.DS_Store
+.idea/
+.vscode/
