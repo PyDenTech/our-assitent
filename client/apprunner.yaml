@@ -1,0 +1,20 @@
+# client/apprunner.yaml
+version: 1.0
+runtime: nodejs22
+
+build:
+  commands:
+    build:
+      - npm ci
+      - npm run build
+
+run:
+  command: npx serve -s dist -l $PORT
+  network:
+    port: 8080 # externo
+    env: PORT # o "serve" escuta na porta passada via PORT
+  env:
+    - name: VITE_API_URL
+      value: "https://SEU_BACKEND_DOMAIN" # depois de publicar o backend
+    - name: VITE_GOOGLE_CLIENT_ID
+      value: "" # defina no console

@@ -1,0 +1,109 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  @apply bg-gray-50 text-gray-900;
+}
+
+/* ========================================= */
+/* == Configurações de Impressão (Print) == */
+/* ========================================= */
+
+@media print {
+  /* 1. Reseta o fundo da página para branco e cor de texto para preto */
+  body, #root, body > #root > div {
+    background: #ffffff !important;
+    color: #000000 !important;
+    /* Força o navegador a imprimir cores de fundo e imagens */
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Margens e espaçamento geral para melhor aproveitamento do papel A4 */
+  @page {
+    margin: 1.5cm 1cm !important; /* Margens padrão para documentos */
+  }
+
+  /* Esconde elementos não imprimíveis */
+  .no-print {
+    display: none !important;
+  }
+
+  /* Esconde o layout principal (Sidebar e Header mobile) */
+  body > #root > div > aside,
+  body > #root > div > main > header {
+    display: none !important;
+  }
+
+  /* Expande o conteúdo principal (<main>) para usar toda a largura e remove padding */
+  body > #root > div > main {
+    width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+  }
+
+  /* === Estilização de Cards para Impressão === */
+  .print-card-clean {
+    border: 1px solid #ccc !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    margin-bottom: 1.5cm !important; /* Espaço entre cards impressos */
+    padding: 1.5cm !important; /* Padding interno para o conteúdo do card */
+    page-break-inside: avoid !important; /* Evita que o card seja cortado no meio da página */
+    page-break-after: auto !important; /* Permite quebrar após o card se necessário */
+  }
+
+  .print-section-title {
+    font-size: 1.5em !important;
+    font-weight: bold !important;
+    margin-top: 2cm !important;
+    margin-bottom: 0.8cm !important;
+    page-break-before: auto !important; /* Permite quebrar antes se necessário */
+    page-break-after: avoid !important; /* Mantém o título com a primeira parte do conteúdo */
+  }
+
+  /* === Controle de Paginação para Ônibus Individuais / Listas === */
+  /* Força cada OnibusVisual a começar em uma nova página, se ele for grande */
+  .onibus-visual-print-page {
+    page-break-after: always !important; /* Força nova página após cada ônibus visual */
+    page-break-inside: avoid !important; /* Evita que um único ônibus visual seja cortado */
+    margin-bottom: 1cm !important; /* Espaçamento extra no final da página */
+  }
+
+  /* Estilo para listas de passageiros por ônibus */
+  .passageiros-lista-onibus-print {
+    margin-top: 1.5cm !important;
+    margin-bottom: 1.5cm !important;
+    page-break-inside: avoid !important; /* Tenta manter a lista de um ônibus junta */
+    page-break-before: auto !important; /* Permite quebrar antes se a lista for longa */
+    page-break-after: always !important; /* Força nova página após cada lista de ônibus */
+  }
+  
+  .passageiros-lista-onibus-print:last-of-type {
+      page-break-after: auto !important; /* Não quebra após o último */
+  }
+
+  /* Ajustes gerais para tabelas ou grades que podem ser usadas em listas */
+  table, .grid {
+    page-break-inside: avoid !important;
+    width: 100% !important;
+  }
+
+  /* Reduz o tamanho da fonte para que mais conteúdo caiba */
+  body {
+    font-size: 12pt !important;
+  }
+  p, span, div {
+    font-size: inherit !important;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-size: 1.2em !important;
+  }
+}

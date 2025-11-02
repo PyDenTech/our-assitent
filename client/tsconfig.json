@@ -1,0 +1,38 @@
+{
+  "compilerOptions": {
+    /* Compatibilidade e padrões modernos */
+    "target": "ESNext",
+    "lib": ["DOM", "DOM.Iterable", "ESNext"],
+
+    /* Permite código JS junto de TS (se houver) */
+    "allowJs": true,
+
+    /* Melhora integração com bibliotecas JS */
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+
+    /* Regras de consistência e segurança */
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true,
+
+    /* Módulos e resolução */
+    "module": "ESNext",
+    "moduleResolution": "Node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+
+    /* JSX para React 17+ */
+    "jsx": "react-jsx",
+
+    /* Alias de importação */
+    "baseUrl": "src",
+    "paths": {
+      "@/*": ["*"]
+    }
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist"]
+}
