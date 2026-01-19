@@ -165,9 +165,9 @@ export default function AuthPage() {
   }
 
   function handleGoogle() {
-    const base = import.meta.env.VITE_API_URL;
+    const base = import.meta.env.VITE_BACKEND_URL || '';
     if (base) window.location.href = `${base}/auth/google`;
-    else setErr("Defina VITE_API_URL para usar o OAuth do Google.");
+    else setErr("Defina VITE_BACKEND_URL para usar o OAuth do Google.");
   }
 
   const passwordAutoComplete =
